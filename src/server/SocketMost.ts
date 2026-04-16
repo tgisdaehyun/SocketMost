@@ -25,6 +25,7 @@ export type DriverConfig = {
   groupAddress: number
   freq: number
   mostExplorer: boolean
+  master?: boolean
 }
 
 const DEFAULT_CONFIG: DriverConfig = {
@@ -188,6 +189,7 @@ export class SocketMost {
       this.config.nodeAddress,
       this.config.groupAddress,
       this.config.freq,
+      this.config.master ?? false,
     )
 
     this.os8104.on(Os8104Events.MostMessageRx, (message: MostRxMessage) => {

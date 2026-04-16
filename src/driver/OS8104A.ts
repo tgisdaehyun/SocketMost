@@ -60,8 +60,9 @@ export class OS8104A extends EventEmitter {
   multiPartMessage?: TargetMostMessage<number[]>
   multiPartSequence: number
   transceiverLocked: boolean
+  master: boolean
 
-  constructor(nodeAddress: number, groupAddress: number, freq: number) {
+  constructor(nodeAddress: number, groupAddress: number, freq: number, master: boolean = false) {
     super()
     this.logger = winston.loggers.get('driverLogger')
     this.spi = spi.openSync(0, 0, options)
@@ -93,6 +94,7 @@ export class OS8104A extends EventEmitter {
     this.getSourceResult = null
     this.multiPartSequence = 0
     this.transceiverLocked = true
+    this.master = master
     this.allocSourceResult = {
       byte0: -1,
       byte1: -1,
@@ -153,19 +155,15 @@ export class OS8104A extends EventEmitter {
     this.logger.debug('writing reset')
     this.reset.writeSync(0)
     this.logger.debug('waiting reset')
-    this.wait(0)
+    this.wait(200)
       .then(() => {
         this.logger.debug('stopping reset')
         this.reset.writeSync(1)
-        this.interrupt.watch(e => {
-          if (e) {
-            this.logger.error(`error setting interrupt watch`)
-          }
-          this.writeReg(0x82, [0x10])
-          this.logger.debug('SCK configured')
-          this.logger.info('initial reset complete carrying out init')
-          this.resetOs8104()
-        })
+        return this.wait(200)
+      })
+      .then(() => {
+        this.logger.info('initial reset complete carrying out init')
+        this.resetOs8104()
       })
       .catch(reason => {
         throw reason
@@ -195,6 +193,7 @@ export class OS8104A extends EventEmitter {
       },
       lockStatusPin,
       this.mostStatus.readSync(),
+      this.master,
     )) {
       this.logger.debug(
         `writing registry: ${entry[0].toString(
@@ -210,7 +209,13 @@ export class OS8104A extends EventEmitter {
       this.logger.silly('interrupt active')
       this.interruptHandler()
     })
-    this.wait(10).then(() => {
+    // Force master mode registers if master enabled
+    if (this.master) {
+      this.writeReg(0x83, [0x06]) // CM1: PLL enable + crystal
+      this.writeReg(0x92, [0x16]) // CM3: FREN + AUTO_CRYSTAL + FREQ_REG_RESET
+      this.writeReg(0x80, [0xc3]) // XCR: Master + output enable
+    }
+    this.wait(500).then(() => {
       this.checkForLock()
     })
   }

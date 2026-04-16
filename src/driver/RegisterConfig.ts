@@ -5,6 +5,7 @@ export function getRegisterConfig(
   { nodeAddressLow, nodeAddressHigh, groupAddress }: Config,
   mode: Mode,
   status: number,
+  master: boolean = false,
 ): Map<reg, number> {
   console.log(
     `addressLow: 0x${nodeAddressLow.toString(
@@ -25,7 +26,7 @@ export function getRegisterConfig(
     mode === 1 ? reg.bCM1_CRYSTAL_DIVIDER_384F : reg.bCM1_CRYSTAL_DIVIDER_256F
   const bypass: reg.bXCR_ENHANCED_BYPASS | reg.bXCR_LEGACY_BYPASS =
     mode === 1 ? reg.bXCR_ENHANCED_BYPASS : reg.bXCR_LEGACY_BYPASS
-  const output = status ? 0 : reg.bXCR_OUTPUT_ENABLE
+  const output = master ? reg.bXCR_OUTPUT_ENABLE : (status ? 0 : reg.bXCR_OUTPUT_ENABLE)
 
   // SCK as output
   // config.set(reg.REG_bSDC1, reg.bSDC1_SCK_OUTPUT)
@@ -54,17 +55,18 @@ export function getRegisterConfig(
   if (mode === 0) {
     config.set(
       reg.REG_bCM3,
-      reg.bCM3_FREN_DIS |
-        reg.bCM3_AUTO_CRYSTAL_DIS |
+      (master ? reg.bCM3_FREN_EN : reg.bCM3_FREN_DIS) |
+        (master ? reg.bCM3_AUTO_CRYSTAL_EN : reg.bCM3_AUTO_CRYSTAL_DIS) |
         reg.bCM3_DIS_AUTO_SWITCH_CLOCK |
         reg.bCM3_FREQ_REG_RESET,
     )
   }
 
   // Transmitter control
+  const transceiverMode = master ? reg.bXCR_MASTER : reg.bXCR_SLAVE
   config.set(
     reg.REG_bXCR,
-    reg.bXCR_SLAVE |
+    transceiverMode |
       bypass |
       reg.bXCR_ALL_BYPASS_DIS |
       reg.bXCR_REN_DIS |
